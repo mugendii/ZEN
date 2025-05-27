@@ -3,13 +3,11 @@
 #include <PubSubClient.h>
 #include <MHZ19.h>
 #include <HardwareSerial.h>
-#include <time.h>
-#include <max6675.h>
+#include <time.h> 
 #include "aws_root_ca.h"
 #include "aws_cert.h"
 #include "aws_private_key.h"
 
-// Wi-Fi and MQTT config
 const char* ssid = "Langat";
 const char* password = "luwa2131";
 const char* mqtt_server = "a7itckl5w2jb3-ats.iot.us-east-1.amazonaws.com";
@@ -17,25 +15,15 @@ const char* mqtt_server = "a7itckl5w2jb3-ats.iot.us-east-1.amazonaws.com";
 WiFiClientSecure net;
 PubSubClient client(net);
 
-// MH-Z19 (CO2 sensor)
 #define RX_PIN 16
 #define TX_PIN 17
 MHZ19 myMHZ19;
 HardwareSerial mySerial(2);
 
-// MAX6675 (Thermocouple)
-#define thermoCLK 18  // SCK
-#define thermoCS 5    // CS
-#define thermoDO 19   // SO (MISO)
-MAX6675 thermocouple(thermoCLK, thermoCS, thermoDO);
-
-// Pressure sensor (Analog)
-#define pressurePin 34
-
 void setupAWSClient() {
-  net.setCACert(AWS_ROOT_CA);
-  net.setCertificate(AWS_CERT);
-  net.setPrivateKey(AWS_PRIVATE_KEY);
+  net.setCACert(AWS_ROOT_CA);         // Root CA
+  net.setCertificate(AWS_CERT); // Device certificate
+  net.setPrivateKey(AWS_PRIVATE_KEY);  // Device private key
 }
 
 void setup_wifi() {
@@ -45,6 +33,7 @@ void setup_wifi() {
     Serial.print(".");
   }
   Serial.println("WiFi connected");
+
   setupAWSClient();
   client.setServer(mqtt_server, 8883);
 }
@@ -70,17 +59,14 @@ void reconnect() {
   }
 }
 
+
 void setup() {
   Serial.begin(115200);
   mySerial.begin(9600, SERIAL_8N1, RX_PIN, TX_PIN);
   myMHZ19.begin(mySerial);
 
-  analogReadResolution(12);
-  analogSetAttenuation(ADC_11db);
-
   setup_wifi();
   syncTime();
-  delay(500);
 }
 
 unsigned long lastSendTime = 0;
@@ -90,29 +76,25 @@ void loop() {
   if (!client.connected()) {
     reconnect();
   }
-  client.loop();
+  client.loop();  // keep connection alive
 
   unsigned long currentMillis = millis();
   if (currentMillis - lastSendTime >= interval) {
     lastSendTime = currentMillis;
-    time_t now = time(nullptr);
 
     int co2 = myMHZ19.getCO2();
-    float tempC = thermocouple.readCelsius();
-    int adcValue = analogRead(pressurePin);
-    float voltage = adcValue * (3.3 / 4095.0);
-    float pressure = (voltage - 0.2) * (700.0 / 2.9);
+    time_t now = time(nullptr);  // current Unix time
+
+    Serial.print("Sending CO2: ");
+    Serial.println(co2);
 
     String payload = "{";
     payload += "\"deviceId\":\"esp32-001\",";
+    payload += "\"sensorType\":\"co2\",";
     payload += "\"timestamp\":" + String((uint64_t)now * 1000) + ",";
-    payload += "\"co2\":" + String(co2) + ",";
-    payload += "\"temperature\":" + String(tempC) + ",";
-    payload += "\"pressure\":" + String(pressure);
+    payload += "\"co2\":" + String(co2);
     payload += "}";
 
-    Serial.println("Sending payload:");
-    Serial.println(payload);
     client.publish("sensorData", payload.c_str());
   }
 }
