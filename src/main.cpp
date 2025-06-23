@@ -109,8 +109,8 @@ void sensorTask(void *parameter) {
     
     // Read pressure
     int adcValue = analogRead(pressurePin);
-    float voltage = adcValue * (3.3 / 4095.0);
-    data.pressure = (voltage - 0.2) * (700.0 / 2.9);
+    float voltage = adcValue * (5.0 / 4095.0);
+    data.pressure =(voltage - 0.5) * (3.0 / 4.0);
     
     // Get timestamp
     data.timestamp = (uint64_t)time(nullptr) * 1000;
